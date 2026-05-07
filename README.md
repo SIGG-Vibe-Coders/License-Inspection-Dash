@@ -1,6 +1,6 @@
 # License Inspection Dashboard
 
-Single-file, offline dashboard for inspecting operational licence CSV data.
+Single-file, offline dashboard for inspecting operational license CSV data.
 
 ## Overview
 
@@ -47,6 +47,8 @@ The dashboard expects these headers:
 - `Count_Inspection_Any_Type_Done`
 - `Days_Since_Latest_Inspection`
 - `Days_Since_Latest_Prework_or_Inspection`
+
+`Tenure` should contain the tenure/category value provided by your source licensing dataset.
 
 ## Project structure
 
