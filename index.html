@@ -135,12 +135,23 @@
 <script>
 /* ------------------------------- Configuration ------------------------------ */
 const COLS = [
-  'Business_Area','Field_Team','Management_Unit','Licence_ID','Tenure','Registrant','Licence_State',
-  'Licence_Issued_Done_Date','Licence_Substantial_Completion_Done_Date','Licence_Current_Expiry_Date',
-  'Logging_Started_Activity_Done_Any_Block_In_Licence','First_HBS_Scale_Date','Latest_HBS_Scale_Date',
-  'First_Prework_Any_Type_Done_Date','First_Inspection_Any_Type_Done_Date','Latest_Inspection_Any_Type_Done_Date',
-  'Latest_Inspection_Final_Done_Date','Latest_Inspection_Obligations_Complete_Done_Date',
-  'Count_Inspection_Any_Type_Done','Days_Since_Latest_Inspection','Days_Since_Latest_Prework_or_Inspection'
+  // Core identifiers / grouping
+  'Business_Area_Region','Business_Area','Field_Team','Management_Unit','Licence_ID','Tenure','Registrant','Licence_State',
+
+  // Licence dates & status
+  'Licence_Issued_Done_Date','Licence_Issued_Done_Fiscal','Licence_Substantial_Completion_Done_Date','Licence_Current_Expiry_Date',
+
+  // Logging / block activity
+  'Logging_Started_Activity_Done_Any_Block_In_Licence','First_Logging_Started_Block_Activity_Done_Date','Latest_Logging_Started_Block_Activity_Done_Date','Block_State_Logging_Started_Any_Block_In_Licence',
+
+  // HBS / scales
+  'First_HBS_Scale_Date','Latest_HBS_Scale_Date',
+
+  // Prework / inspections
+  'First_Prework_Any_Type_Done_Date','First_Inspection_Any_Type_Done_Date','Latest_Inspection_Any_Type_Done_Date','Latest_Inspection_Final_Done_Date','Latest_Inspection_Obligations_Complete_Done_Date',
+
+  // Counts / durations
+  'Count_Inspection_Any_Type_Done','Days_from_First_Prework_to_First_Logging_Start_Block_Activity','Days_from_First_Logging_Start_Block_Activity_to_First_Inspection','Days_Since_Latest_Prework_or_Inspection','Days_Since_Latest_Inspection','licn_seq_nbr'
 ];
 
 /* ------------------------------- Utilities ---------------------------------- */
@@ -217,18 +228,22 @@ function normalizeRecords(rows){
     // Dates → YYYY-MM-DD
     [
       'Licence_Issued_Done_Date','Licence_Substantial_Completion_Done_Date','Licence_Current_Expiry_Date',
-      'First_HBS_Scale_Date','Latest_HBS_Scale_Date','First_Prework_Any_Type_Done_Date','First_Inspection_Any_Type_Done_Date',
-      'Latest_Inspection_Any_Type_Done_Date','Latest_Inspection_Final_Done_Date','Latest_Inspection_Obligations_Complete_Done_Date'
+      'First_Logging_Started_Block_Activity_Done_Date','Latest_Logging_Started_Block_Activity_Done_Date','First_HBS_Scale_Date','Latest_HBS_Scale_Date',
+      'First_Prework_Any_Type_Done_Date','First_Inspection_Any_Type_Done_Date','Latest_Inspection_Any_Type_Done_Date',
+      'Latest_Inspection_Final_Done_Date','Latest_Inspection_Obligations_Complete_Done_Date'
     ].forEach(k => out[k] = toYMD(out[k]));
 
     // Booleans/flags
     const logVal = (out['Logging_Started_Activity_Done_Any_Block_In_Licence'] || '').toString().trim().toUpperCase();
     out['Logging_Started_Activity_Done_Any_Block_In_Licence'] = (logVal === 'Y') ? 'Y' : ''; // N/blank collapsed to ''
 
-    // Numbers
-    out['Count_Inspection_Any_Type_Done'] = toNum(out['Count_Inspection_Any_Type_Done'], 0);
-    out['Days_Since_Latest_Inspection'] = toNum(out['Days_Since_Latest_Inspection'], 0);
-    out['Days_Since_Latest_Prework_or_Inspection'] = toNum(out['Days_Since_Latest_Prework_or_Inspection'], 0);
+  // Numbers
+  out['Count_Inspection_Any_Type_Done'] = toNum(out['Count_Inspection_Any_Type_Done'], 0);
+  out['Days_Since_Latest_Inspection'] = toNum(out['Days_Since_Latest_Inspection'], 0);
+  out['Days_Since_Latest_Prework_or_Inspection'] = toNum(out['Days_Since_Latest_Prework_or_Inspection'], 0);
+  out['Days_from_First_Prework_to_First_Logging_Start_Block_Activity'] = toNum(out['Days_from_First_Prework_to_First_Logging_Start_Block_Activity'], 0);
+  out['Days_from_First_Logging_Start_Block_Activity_to_First_Inspection'] = toNum(out['Days_from_First_Logging_Start_Block_Activity_to_First_Inspection'], 0);
+  out['licn_seq_nbr'] = toNum(out['licn_seq_nbr'], 0);
 
     return out;
   });
@@ -316,7 +331,7 @@ function drawBar(elId, series, colors, title){
   const svgNS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(svgNS,'svg');
   svg.setAttribute('width', w); svg.setAttribute('height', h);
-  const padL=50, padB=40, padT=22, padR=10, cw=w-padL-padR, ch=h-padT-padB;
+  const padL=50, padB=44, padT=44, padR=10, cw=w-padL-padR, ch=h-padT-padB;
 
   const keys = Object.keys(series);
   const vals = Object.values(series);
@@ -345,11 +360,28 @@ function drawBar(elId, series, colors, title){
     r.setAttribute('fill', colors[i % colors.length]);
     svg.append(r);
 
+    // Create wrapped label: put each word on its own line using <tspan>
     const tx = document.createElementNS(svgNS,'text');
-    tx.setAttribute('x', x + Math.max(6, bw-12)/2);
+    const txX = x + Math.max(6, bw-12)/2;
+    tx.setAttribute('x', txX);
     tx.setAttribute('y', h - 8);
     tx.setAttribute('text-anchor','middle'); tx.setAttribute('font-size','11');
-    tx.textContent = k; svg.append(tx);
+    const words = (''+k).split(/\s+/).filter(Boolean);
+    if (words.length <= 1){
+      const t0 = document.createElementNS(svgNS,'tspan');
+      t0.setAttribute('x', txX); t0.setAttribute('dy', '0');
+      t0.textContent = words[0] || '';
+      tx.append(t0);
+    } else {
+      words.forEach((w,i) => {
+        const t = document.createElementNS(svgNS,'tspan');
+        t.setAttribute('x', txX);
+        t.setAttribute('dy', i === 0 ? '0' : '12');
+        t.textContent = w;
+        tx.append(t);
+      });
+    }
+    svg.append(tx);
 
     const tv = document.createElementNS(svgNS,'text');
     tv.setAttribute('x', x + Math.max(6, bw-12)/2); tv.setAttribute('y', y - 4);
@@ -390,10 +422,19 @@ function drawPie(elId, parts, colors, title){
     const am = (a0 + a1)/2;
     const lx = cx + (r*0.7)*Math.cos(am);
     const ly = cy + (r*0.7)*Math.sin(am);
+    // Create wrapped pie slice label; allow multi-word labels on separate lines
     const t = document.createElementNS(svgNS,'text');
     t.setAttribute('x', lx); t.setAttribute('y', ly);
     t.setAttribute('text-anchor','middle'); t.setAttribute('font-size','11');
-    t.textContent = `${k}: ${v}`;
+    const label = `${k}: ${v}`;
+    const parts = (''+label).split(/\s+/).filter(Boolean);
+    parts.forEach((p,i) => {
+      const ts = document.createElementNS(svgNS,'tspan');
+      ts.setAttribute('x', lx);
+      ts.setAttribute('dy', i === 0 ? '0' : '12');
+      ts.textContent = p;
+      t.append(ts);
+    });
     svg.append(t);
 
     a0 = a1;
@@ -401,7 +442,16 @@ function drawPie(elId, parts, colors, title){
 
   const tt = document.createElementNS(svgNS,'text');
   tt.setAttribute('x', 8); tt.setAttribute('y', 16); tt.setAttribute('font-size','12');
-  tt.textContent = title; svg.append(tt);
+  // Title may be multi-word; split into tspans to avoid overlap
+  const titleParts = (''+title).split(/\s+/).filter(Boolean);
+  titleParts.forEach((p,i) => {
+    const tts = document.createElementNS(svgNS,'tspan');
+    tts.setAttribute('x', 8);
+    tts.setAttribute('dy', i === 0 ? '0' : '14');
+    tts.textContent = p;
+    tt.append(tts);
+  });
+  svg.append(tt);
 
   el.append(svg);
 }
@@ -579,6 +629,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const emptyMsg = rows => rows && rows.length ? '' : '<tr><td class="empty">Load a CSV to populate the table.</td></tr>';
   $('tblUpcoming').innerHTML = '<thead><tr><th>Business_Area</th><th>Field_Team</th><th>Licence_ID</th><th>Registrant</th><th>Licence_State</th><th>Licence_Current_Expiry_Date</th><th>Count_Inspection_Any_Type_Done</th></tr></thead><tbody>'+emptyMsg([])+'</tbody>';
   $('tblNoInsp').innerHTML   = '<thead><tr><th>Business_Area</th><th>Field_Team</th><th>Licence_ID</th><th>Registrant</th><th>Licence_State</th><th>Licence_Current_Expiry_Date</th></tr></thead><tbody>'+emptyMsg([])+'</tbody>';
+  // Ensure full dataset header matches COLS order (reflects newly added columns)
   $('tblAll').innerHTML      = '<thead><tr>'+COLS.map(c=>`<th>${c}</th>`).join('')+'</tr></thead><tbody>'+emptyMsg([])+'</tbody>';
 });
 </script>
