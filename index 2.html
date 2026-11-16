@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TKO Operational Licence Inspection — Offline Dashboard</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1f1f1f;--muted:#666;--brand:#005a9e;--a:#2d7dd2;--b:#7e57c2;--c:#00a88f;--d:#ff7043}
+*{box-sizing:border-box}body{margin:0;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink)}header{background:var(--brand);color:#fff;padding:16px 24px}header h1{margin:0;font-size:20px}.container{padding:16px 24px}.cards{display:flex;flex-wrap:wrap;gap:12px;margin:12px 0 18px}.card{background:var(--card);border-radius:8px;padding:12px 16px;box-shadow:0 1px 3px #0000001a;min-width:200px}.card h3{margin:0;font-size:13px;color:#555;font-weight:600}.num{font-size:26px;font-weight:700;margin-top:6px}section h2{margin:22px 0 10px;font-size:18px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:16px}.panel{background:var(--card);border-radius:8px;padding:10px 12px;box-shadow:0 1px 3px #0000001a}.chart{width:100%;height:320px}.table-wrap{background:var(--card);border-radius:8px;box-shadow:0 1px 3px #0000001a;overflow:auto;max-height:560px}table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid #eee;padding:8px 10px;font-size:13px;text-align:left}th{position:sticky;top:0;background:#fafafa;cursor:pointer}.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin:10px 0}label{font-size:12px;color:#333;display:flex;flex-direction:column;gap:4px}input,select,button{font-size:13px;padding:6px 8px}button{background:var(--brand);color:#fff;border:none;border-radius:4px;cursor:pointer}button.secondary{background:#e0e0e0;color:#111}button:disabled{opacity:.5;cursor:default}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #e9aa00;outline-offset:2px}.tag{display:inline-block;padding:2px 6px;border-radius:4px;background:#eee;font-size:12px}.pager{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px}.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:#444}.swatch{width:12px;height:12px;display:inline-block;border-radius:2px;margin-right:4px}.empty{padding:10px;color:#777;font-size:13px}footer{color:#666;font-size:12px;padding:12px 24px}.dropzone{border:2px dashed #bbb;border-radius:8px;padding:16px;background:#fff;text-align:center;color:#555}.dropzone.drag{border-color:var(--brand);background:#eef5fb}.share-box{background:#fff;border:1px solid #ccdce8;border-radius:8px;padding:12px 16px;margin:12px 0}.share-box p{font-size:13px;color:#555;margin:8px 0 0;line-height:1.5}#status{font-size:13px;line-height:1.5;margin:10px 0;overflow-wrap:anywhere}#status.error{color:#a32121}.scope-note{font-size:12px;color:#666}#save_fallback{font-size:13px;margin-top:10px}
+</style>
+</head>
+<body>
+<header><h1>TKO Operational Licence Inspection — Offline Dashboard</h1></header>
+<div class="container">
+<div class="cards">
+<div class="card"><h3>Total licences</h3><div class="num" id="kpi_total">0</div></div>
+<div class="card"><h3>Upcoming expiries (≤90d)</h3><div class="num" id="kpi_upcoming">0</div></div>
+<div class="card"><h3>Logging started</h3><div class="num" id="kpi_logstart">0</div></div>
+<div class="card"><h3>Logging started, no inspection</h3><div class="num" id="kpi_noinsp">0</div></div>
+<div class="card"><h3>≥365d since latest inspection</h3><div class="num" id="kpi_over1yr">0</div></div>
+</div>
+<section><h2>Filters &amp; actions</h2>
+<div class="toolbar">
+<label>Field Team<select id="f_team"><option value="">All</option></select></label>
+<label>Licence State<select id="f_state"><option value="">All</option></select></label>
+<label>Registrant (contains)<input id="f_reg" type="text" placeholder="Type a registrant name"></label>
+<label>Logging started<select id="f_log"><option value="">All</option><option value="Y">Y</option><option value="N">N/blank</option></select></label>
+<label>Expiry from<input id="f_exp_from" type="date"></label>
+<label>Expiry to<input id="f_exp_to" type="date"></label>
+<label>Search text<input id="f_q" type="text" placeholder="Search any column"></label>
+<button id="btn_reset" class="secondary">Reset filters</button>
+<button id="btn_export" disabled>Export current table to CSV</button>
+<label>Load new CSV (same columns)<input id="file_csv" type="file" accept=".csv,text/csv"></label>
+<button id="btn_load">Load CSV</button>
+</div>
+<div id="dz" class="dropzone">Drag &amp; drop CSV here (or use “Load CSV” button)</div>
+<div id="status" role="status" aria-live="polite">Load a CSV to get started.</div>
+<div class="share-box">
+<button id="btn_share" disabled>Download populated dashboard (HTML)</button>
+<p>Creates one offline HTML file containing the full uploaded CSV, interactive dashboard, current filters, and full-table sort/page settings. Anyone with the file can access <strong>all embedded records</strong>, including records hidden by filters. Share only with intended recipients. This is a snapshot, not a live connection.</p>
+<div id="save_fallback" hidden></div>
+</div>
+<p class="scope-note">Filters apply to the full dataset table and its CSV export. Summary cards, charts, and priority queues show the entire loaded dataset. Expiry queues use the date when the file is opened; “days since” values remain as supplied in the CSV.</p>
+</section>
+<section><h2>Charts (offline SVG)</h2><div class="grid">
+<div class="panel"><div class="chart" id="bar_by_team"></div></div>
+<div class="panel"><div class="chart" id="bar_by_state"></div></div>
+<div class="panel"><div class="chart" id="pie_logging"></div><div class="legend"><span><span class="swatch" style="background:var(--c)"></span>Y</span><span><span class="swatch" style="background:#c2c2c2"></span>N/blank</span></div></div>
+<div class="panel"><div class="chart" id="bar_insp_dist"></div></div>
+</div></section>
+<section><h2>Priority queues</h2><h3>Upcoming expiries (next 90 days)</h3><div class="table-wrap"><table id="tblUpcoming"></table></div><h3 style="margin-top:16px">Logging started, no inspection</h3><div class="table-wrap"><table id="tblNoInsp"></table></div></section>
+<section><h2>Full dataset</h2><div class="table-wrap"><table id="tblAll"></table></div><div class="pager"><label>Rows per page<select id="page_size"><option>10</option><option selected>25</option><option>50</option><option>100</option></select></label><button class="secondary" id="prev_page">Prev</button><span class="tag" id="page_info">Page 0 of 0 — 0 rows</span><button class="secondary" id="next_page">Next</button></div></section>
+</div>
+<footer>Single-file, offline dashboard. Exported HTML includes the complete source CSV. No external libraries or network requests.</footer>
+<script id="embedded-dashboard" type="application/json">null</script>
+<script>
+'use strict';
+const COLS=['Business_Area_Region','Business_Area','Field_Team','Management_Unit','Licence_ID','Tenure','Registrant','Licence_State','Licence_Issued_Done_Date','Licence_Issued_Done_Fiscal','Licence_Substantial_Completion_Done_Date','Licence_Current_Expiry_Date','Logging_Started_Activity_Done_Any_Block_In_Licence','First_Logging_Started_Block_Activity_Done_Date','Latest_Logging_Started_Block_Activity_Done_Date','Block_State_Logging_Started_Any_Block_In_Licence','First_HBS_Scale_Date','Latest_HBS_Scale_Date','First_Prework_Any_Type_Done_Date','First_Inspection_Any_Type_Done_Date','Latest_Inspection_Any_Type_Done_Date','Latest_Inspection_Final_Done_Date','Latest_Inspection_Obligations_Complete_Done_Date','Count_Inspection_Any_Type_Done','Days_from_First_Prework_to_First_Logging_Start_Block_Activity','Days_from_First_Logging_Start_Block_Activity_to_First_Inspection','Days_Since_Latest_Prework_or_Inspection','Days_Since_Latest_Inspection','licn_seq_nbr'];
+const FILTER_IDS=['f_team','f_state','f_reg','f_log','f_exp_from','f_exp_to','f_q'];
+const UPCOLS=['Business_Area','Field_Team','Licence_ID','Registrant','Licence_State','Licence_Current_Expiry_Date','Count_Inspection_Any_Type_Done'];
+const NOCOLS=UPCOLS.slice(0,-1);
+const $=id=>document.getElementById(id);
+let FULL=[],FILTERED=[],SOURCE={name:'',csv:'',loadedAt:''},HEADERS=[],exportURL=null,loadToken=0;
+let tableState={page:0,sortKey:'',asc:true};
+const prioritySort={};
+function status(text,error=false){$('status').textContent=text;$('status').classList.toggle('error',error);}
+function todayStr(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function toYMD(s){if(!s)return '';s=String(s).trim();if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;const d=new Date(s);if(Number.isNaN(d.getTime()))return '';return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);}
+function toNum(x){const n=Number(x);return Number.isFinite(n)?n:0;}
+function plus90(){const d=new Date(todayStr()+'T12:00:00');d.setDate(d.getDate()+90);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function parseCsv(text){
+ text=String(text).replace(/^\uFEFF/,'');const out=[];let row=[],field='',inQ=false;
+ for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'){if(inQ&&text[i+1]==='"'){field+='"';i++;}else inQ=!inQ;}
+ else if(c===','&&!inQ){row.push(field);field='';}
+ else if((c==='\n'||c==='\r')&&!inQ){if(field!==''||row.length){row.push(field);out.push(row);field='';row=[];}if(c==='\r'&&text[i+1]==='\n')i++;}
+ else field+=c;}
+ if(inQ)throw new Error('CSV contains an unclosed quoted field.');
+ if(field!==''||row.length){row.push(field);out.push(row);}return out;
+}
+function decodeCsv(text){
+ const rows=parseCsv(text);if(rows.length<2)throw new Error('CSV must contain a header and at least one data row.');
+ const headers=rows[0].map(h=>h.trim());if(headers.some(h=>!h)||new Set(headers).size!==headers.length)throw new Error('CSV headers must be non-empty and unique.');
+ const essential=['Field_Team','Licence_ID','Registrant','Licence_State','Licence_Current_Expiry_Date','Logging_Started_Activity_Done_Any_Block_In_Licence','Count_Inspection_Any_Type_Done'];
+ const missing=essential.filter(h=>!headers.includes(h));if(missing.length)throw new Error('Missing required columns: '+missing.join(', '));
+ const objects=[];for(let i=1;i<rows.length;i++){const row=rows[i];if(row.every(v=>!v.trim()))continue;if(row.length!==headers.length)throw new Error('CSV record '+(i+1)+' has '+row.length+' fields; expected '+headers.length+'. No data was replaced.');objects.push(Object.fromEntries(headers.map((h,j)=>[h,row[j]])));}
+ if(!objects.length)throw new Error('No data records found.');return {headers,objects};
+}
+function normalizeRecords(rows){return rows.map(r=>{const o={...r};COLS.filter(k=>k.endsWith('_Date')).forEach(k=>o[k]=toYMD(o[k]));o.Logging_Started_Activity_Done_Any_Block_In_Licence=String(o.Logging_Started_Activity_Done_Any_Block_In_Licence||'').trim().toUpperCase()==='Y'?'Y':'';COLS.filter(k=>k.startsWith('Days_')||k==='Count_Inspection_Any_Type_Done'||k==='licn_seq_nbr').forEach(k=>o[k]=toNum(o[k]));return o;});}
+function initFilterOptions(){for(const [id,key] of [['f_team','Field_Team'],['f_state','Licence_State']]){const select=$(id);select.replaceChildren(new Option('All',''));[...new Set(FULL.map(r=>String(r[key]||'').trim()).filter(Boolean))].sort().forEach(v=>select.add(new Option(v,v)));}}
+function applyFilters(){const v=Object.fromEntries(FILTER_IDS.map(id=>[id,$(id).value.trim()]));return FULL.filter(r=>{
+ if(v.f_team&&String(r.Field_Team||'').trim()!==v.f_team)return false;
+ if(v.f_state&&String(r.Licence_State||'').trim()!==v.f_state)return false;
+ if(v.f_reg&&!String(r.Registrant||'').toLowerCase().includes(v.f_reg.toLowerCase()))return false;
+ const log=r.Logging_Started_Activity_Done_Any_Block_In_Licence==='Y';if(v.f_log==='Y'&&!log||v.f_log==='N'&&log)return false;
+ const exp=r.Licence_Current_Expiry_Date||'';if(v.f_exp_from&&(!exp||exp<v.f_exp_from)||v.f_exp_to&&(!exp||exp>v.f_exp_to))return false;
+ if(v.f_q&&!COLS.some(c=>String(r[c]??'').toLowerCase().includes(v.f_q.toLowerCase())))return false;return true;
+ });}
+function compare(a,b,key,asc){const va=a[key]??'',vb=b[key]??'';let n;if(typeof va==='number'&&typeof vb==='number')n=va-vb;else n=String(va).localeCompare(String(vb),undefined,{numeric:true,sensitivity:'base'});return (asc?1:-1)*n;}
+function sorted(rows,state){return state.sortKey?rows.slice().sort((a,b)=>compare(a,b,state.sortKey,state.asc)):rows;}
+function buildTable(id,rows,cols,paged=false){
+ const table=$(id),state=paged?tableState:(prioritySort[id]??={sortKey:'',asc:true});const arr=sorted(rows,state);const size=Number($('page_size').value);const pages=Math.ceil(arr.length/size);
+ if(paged)state.page=Math.max(0,Math.min(state.page,Math.max(0,pages-1)));
+ const shown=paged?arr.slice(state.page*size,(state.page+1)*size):arr;
+ const head=document.createElement('thead'),tr=document.createElement('tr');cols.forEach(key=>{const th=document.createElement('th');th.textContent=key+(state.sortKey===key?(state.asc?' ▲':' ▼'):'');th.tabIndex=0;th.setAttribute('aria-sort',state.sortKey===key?(state.asc?'ascending':'descending'):'none');const sort=()=>{state.asc=state.sortKey===key?!state.asc:true;state.sortKey=key;if(paged)state.page=0;buildTable(id,rows,cols,paged);};th.onclick=sort;th.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();sort();}};tr.append(th);});head.append(tr);
+ const body=document.createElement('tbody');for(const r of shown){const tr=document.createElement('tr');for(const c of cols){const td=document.createElement('td');td.textContent=String(r[c]??'');tr.append(td);}body.append(tr);}
+ if(!shown.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=cols.length;td.className='empty';td.textContent=FULL.length?'No matching records.':'Load a CSV to populate the table.';tr.append(td);body.append(tr);}table.replaceChildren(head,body);
+ if(paged){$('page_info').textContent=`Page ${pages?state.page+1:0} of ${pages} — ${arr.length} rows`;$('prev_page').disabled=state.page<=0;$('next_page').disabled=!pages||state.page>=pages-1;}
+}
+const NS='http://www.w3.org/2000/svg';
+function svgEl(tag,attrs={},text){const e=document.createElementNS(NS,tag);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,v));if(text!==undefined)e.textContent=text;return e;}
+function chartBase(id,title){const el=$(id),w=el.clientWidth||600,h=320;const svg=svgEl('svg',{width:'100%',height:h,viewBox:`0 0 ${w} ${h}`,role:'img','aria-label':title});svg.append(svgEl('title',{},title),svgEl('text',{x:12,y:22,'font-size':13,fill:'#333'},title));el.replaceChildren(svg);return {svg,w,h};}
+function drawBar(id,series,colors,title){const {svg,w,h}=chartBase(id,title);const entries=Object.entries(series),max=Math.max(1,...entries.map(e=>e[1]));if(!entries.length){svg.append(svgEl('text',{x:12,y:60,'font-size':13,fill:'#777'},'No data loaded'));return;}
+ const left=42,bottom=90,top=48,width=w-left-12,height=h-top-bottom,bw=width/entries.length;svg.append(svgEl('line',{x1:left,y1:h-bottom,x2:w-12,y2:h-bottom,stroke:'#999'}),svgEl('line',{x1:left,y1:top,x2:left,y2:h-bottom,stroke:'#999'}));
+ entries.forEach(([key,val],i)=>{const bh=val/max*height,x=left+i*bw+3,y=h-bottom-bh,barw=Math.max(1,bw-6);const bar=svgEl('rect',{x,y,width:barw,height:bh,fill:colors[i%colors.length]});bar.append(svgEl('title',{},`${key}: ${val}`));svg.append(bar,svgEl('text',{x:x+barw/2,y:y-5,'text-anchor':'middle','font-size':11},val));const tx=svgEl('text',{x:x+barw/2,y:h-bottom+16,'text-anchor':'end','font-size':10,transform:`rotate(-35 ${x+barw/2} ${h-bottom+16})`},key.length>28?key.slice(0,26)+'…':key);tx.append(svgEl('title',{},key));svg.append(tx);});}
+function drawPie(id,parts,colors,title){const {svg,w,h}=chartBase(id,title),total=Object.values(parts).reduce((a,b)=>a+b,0);if(!total){svg.append(svgEl('text',{x:12,y:60,'font-size':13,fill:'#777'},'No data loaded'));return;}const cx=w/2,cy=178,r=Math.min(w/3,100);let a0=-Math.PI/2;Object.entries(parts).forEach(([key,v],i)=>{if(!v)return;const a1=a0+Math.PI*2*v/total;let shape;if(v===total)shape=svgEl('circle',{cx,cy,r,fill:colors[i%colors.length]});else shape=svgEl('path',{d:`M ${cx} ${cy} L ${cx+r*Math.cos(a0)} ${cy+r*Math.sin(a0)} A ${r} ${r} 0 ${a1-a0>Math.PI?1:0} 1 ${cx+r*Math.cos(a1)} ${cy+r*Math.sin(a1)} Z`,fill:colors[i%colors.length]});shape.append(svgEl('title',{},`${key}: ${v}`));svg.append(shape);const mid=(a0+a1)/2;svg.append(svgEl('text',{x:cx+r*.6*Math.cos(mid),y:cy+r*.6*Math.sin(mid),'text-anchor':'middle','font-size':12},`${key}: ${v}`));a0=a1;});}
+function renderCharts(){const teams=Object.create(null),states=Object.create(null),insp={'0':0,'1':0,'2+':0};let y=0;FULL.forEach(r=>{const t=r.Field_Team||'(blank)',s=r.Licence_State||'(blank)';teams[t]=(teams[t]||0)+1;states[s]=(states[s]||0)+1;if(r.Logging_Started_Activity_Done_Any_Block_In_Licence==='Y')y++;const n=r.Count_Inspection_Any_Type_Done;insp[n<=0?'0':n===1?'1':'2+']++;});drawBar('bar_by_team',teams,['var(--a)','#4e89de','#7aa6ea','#a6c2f3'],'Licences by Field Team');drawBar('bar_by_state',states,['var(--b)','#a083d6','#c6b3e5'],'Licences by Licence State');drawPie('pie_logging',{'Y':y,'N/blank':FULL.length-y},['var(--c)','#c2c2c2'],'Logging started');drawBar('bar_insp_dist',insp,['var(--d)','#ffa07a','#ffc1a6'],'Inspection count distribution (0, 1, 2+)');}
+function renderFiltered(){FILTERED=applyFilters();buildTable('tblAll',FILTERED,COLS,true);}
+function refreshAll(){const today=todayStr(),end=plus90();const upcoming=FULL.filter(r=>r.Licence_Current_Expiry_Date>=today&&r.Licence_Current_Expiry_Date<=end).sort((a,b)=>a.Licence_Current_Expiry_Date.localeCompare(b.Licence_Current_Expiry_Date));const noInsp=FULL.filter(r=>r.Logging_Started_Activity_Done_Any_Block_In_Licence==='Y'&&r.Count_Inspection_Any_Type_Done===0).sort((a,b)=>String(a.Field_Team||'').localeCompare(String(b.Field_Team||'')));$('kpi_total').textContent=FULL.length;$('kpi_upcoming').textContent=upcoming.length;$('kpi_logstart').textContent=FULL.filter(r=>r.Logging_Started_Activity_Done_Any_Block_In_Licence==='Y').length;$('kpi_noinsp').textContent=noInsp.length;$('kpi_over1yr').textContent=FULL.filter(r=>r.Days_Since_Latest_Inspection>=365).length;buildTable('tblUpcoming',upcoming,UPCOLS);buildTable('tblNoInsp',noInsp,NOCOLS);renderFiltered();renderCharts();$('btn_share').disabled=!FULL.length;$('btn_export').disabled=!FULL.length;}
+function clearDownload(){if(exportURL){URL.revokeObjectURL(exportURL);exportURL=null;}$('save_fallback').replaceChildren();$('save_fallback').hidden=true;}
+function downloadText(filename,text,type='text/plain;charset=utf-8',persistent=false){const url=URL.createObjectURL(new Blob([text],{type}));const a=document.createElement('a');a.href=url;a.download=filename;a.textContent='Click here to save '+filename;if(persistent){clearDownload();exportURL=url;$('save_fallback').hidden=false;$('save_fallback').append('If the download did not start: ',a);}else document.body.append(a);a.click();if(!persistent){a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}}
+function exportCsv(){const esc=s=>'"'+String(s).replace(/"/g,'""')+'"';const rows=sorted(FILTERED,tableState);downloadText('TKO_filtered.csv','\uFEFF'+[COLS.map(esc).join(','),...rows.map(r=>COLS.map(c=>esc(r[c]??'')).join(','))].join('\r\n'),'text/csv;charset=utf-8');}
+function captureState(){return {filters:Object.fromEntries(FILTER_IDS.map(id=>[id,$(id).value])),pageSize:$('page_size').value,table:{...tableState}};}
+function restoreState(state){if(!state||typeof state!=='object')return;for(const id of FILTER_IDS)if(typeof state.filters?.[id]==='string')$(id).value=state.filters[id];if(['10','25','50','100'].includes(String(state.pageSize)))$('page_size').value=String(state.pageSize);if(state.table){tableState={page:Number.isSafeInteger(state.table.page)&&state.table.page>=0?state.table.page:0,sortKey:COLS.includes(state.table.sortKey)?state.table.sortKey:'',asc:state.table.asc!==false};}}
+function exportDashboard(){
+ if(!FULL.length)return;
+ try{
+ const payload={version:1,source:{...SOURCE},exportedAt:new Date().toISOString(),state:captureState()};
+ // Escape HTML-sensitive characters so CSV content cannot terminate the JSON script.
+ const safe=JSON.stringify(payload).replace(/</g,'\\u003c').replace(/>/g,'\\u003e').replace(/&/g,'\\u0026').replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029');
+ const clone=document.documentElement.cloneNode(true);clone.querySelector('#embedded-dashboard').textContent=safe;
+ // Generated UI is rebuilt on opening. Do not duplicate tables/charts in the file.
+ for(const id of ['tblUpcoming','tblNoInsp','tblAll','bar_by_team','bar_by_state','pie_logging','bar_insp_dist','save_fallback'])clone.querySelector('#'+id).replaceChildren();
+ clone.querySelector('#save_fallback').hidden=true;clone.querySelector('#file_csv').value='';
+ const stem=(SOURCE.name.replace(/\.csv$/i,'')||'TKO_Licence_Inspection').replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,90);
+ downloadText(stem+'_dashboard_'+todayStr()+'.html','<!doctype html>\n'+clone.outerHTML,'text/html;charset=utf-8',true);
+ status('Dashboard HTML prepared with '+FULL.length.toLocaleString()+' embedded records. Send the downloaded HTML file, not the website link.');
+ }catch(e){status('Could not export dashboard: '+e.message,true);}
+}
+function loadCsvText(csv,name,loadedAt,state){const decoded=decodeCsv(csv),normalized=normalizeRecords(decoded.objects);FULL=normalized;HEADERS=decoded.headers;SOURCE={name:name||'data.csv',csv,loadedAt:loadedAt||new Date().toISOString()};clearDownload();FILTER_IDS.forEach(id=>$(id).value='');tableState={page:0,sortKey:'',asc:true};initFilterOptions();restoreState(state);refreshAll();const missing=COLS.filter(h=>!HEADERS.includes(h));status(SOURCE.name+' — '+FULL.length.toLocaleString()+' records loaded. Imported '+new Date(SOURCE.loadedAt).toLocaleString()+'.'+(missing.length?' '+missing.length+' optional columns are absent; related fields use blank/zero defaults.':''));}
+async function handleCsvFile(file){const token=++loadToken;try{const csv=await file.text();if(token!==loadToken)return;loadCsvText(csv,file.name);}catch(e){if(token===loadToken)status('Could not load CSV: '+e.message,true);}}
+window.addEventListener('DOMContentLoaded',()=>{
+ FILTER_IDS.forEach(id=>$(id).addEventListener('input',()=>{tableState.page=0;renderFiltered();}));
+ $('btn_reset').onclick=()=>{FILTER_IDS.forEach(id=>$(id).value='');tableState.page=0;renderFiltered();};
+ $('btn_export').onclick=exportCsv;$('btn_share').onclick=exportDashboard;
+ $('btn_load').onclick=()=>{const file=$('file_csv').files[0];if(file)handleCsvFile(file);else status('Choose a CSV file first.',true);};
+ $('page_size').onchange=()=>{tableState.page=0;renderFiltered();};$('prev_page').onclick=()=>{tableState.page--;renderFiltered();};$('next_page').onclick=()=>{tableState.page++;renderFiltered();};
+ const dz=$('dz');dz.ondragover=e=>{e.preventDefault();dz.classList.add('drag');};dz.ondragleave=()=>dz.classList.remove('drag');dz.ondrop=e=>{e.preventDefault();dz.classList.remove('drag');if(e.dataTransfer.files[0])handleCsvFile(e.dataTransfer.files[0]);};
+ refreshAll();
+ try{const embedded=JSON.parse($('embedded-dashboard').textContent);if(embedded){if(embedded.version!==1||typeof embedded.source?.csv!=='string')throw new Error('Unsupported embedded dashboard format.');loadCsvText(embedded.source.csv,embedded.source.name,embedded.source.loadedAt,embedded.state);status($('status').textContent+' Shared snapshot exported '+new Date(embedded.exportedAt).toLocaleString()+'.');}}
+ catch(e){status('Embedded data could not be loaded: '+e.message,true);}
+ let timer;window.addEventListener('resize',()=>{clearTimeout(timer);timer=setTimeout(renderCharts,150);});
+});
+</script>
+</body>
+</html>
